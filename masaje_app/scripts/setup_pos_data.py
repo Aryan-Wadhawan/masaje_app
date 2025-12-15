@@ -42,8 +42,8 @@ def set_permissions():
 
 def create_pos_profile(company):
     if frappe.db.exists("POS Profile", "Bohol Main POS"):
-        print("POS Profile exists")
-        return
+        frappe.delete_doc("POS Profile", "Bohol Main POS", ignore_permissions=True)
+        print("Deleted existing POS Profile to update settings")
 
     write_off = "Write Off - MDB"
     income_account = "Sales - MDB"
@@ -67,7 +67,7 @@ def create_pos_profile(company):
     if not warehouse:
         warehouse = "Bohol Main Store - MDB"
 
-    frappe.get_doc({
+    profile = frappe.get_doc({
         "doctype": "POS Profile",
         "name": "Bohol Main POS",
         "company": company,
@@ -77,7 +77,9 @@ def create_pos_profile(company):
         "write_off_cost_center": write_off_cc,
         "selling_price_list": "Bohol Main",
         "payments": payments,
-        "applicable_for_users": [{"user": "receptionist_main@masaje.com"}]
-    }).insert(ignore_permissions=True)
+        # Remove User Restriction to allow Administrator and Receptionist (via Roles)
+        "applicable_for_users": []
+    })
+    profile.insert(ignore_permissions=True)
     print("Created POS Profile")
 
