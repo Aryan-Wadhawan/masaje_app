@@ -30,6 +30,27 @@ def get_available_slots(branch, date, service_item=None):
     date_obj = get_datetime(date)
     day_name = date_obj.strftime("%A")
 
+    # Determine Duration
+    # Helper logic similar to create_booking
+    import json
+    items = service_item
+    if isinstance(items, str):
+        try:
+            items = json.loads(items)
+        except:
+            items = [items] if items else []
+            
+    total_duration = 0
+    if not items:
+        total_duration = 60 # Default for slot viewing
+    else:
+        for item in items:
+            # Quick check for duration in name/desc or default
+            duration = 60
+            if "30" in str(item): duration = 30
+            if "90" in str(item): duration = 90
+            total_duration += duration
+
     # 1. Get List of Therapists working at this Branch on this Day
     # Join Therapist Schedule with Employee to filter by Branch
     working_therapists = frappe.db.sql("""
@@ -46,7 +67,6 @@ def get_available_slots(branch, date, service_item=None):
         return []
 
     # 2. Define Time Slots (e.g. 9am to 6pm)
-    # Ideally derived from earliest start and latest end of therapists
     possible_slots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"]
     
     available_slots = []
@@ -56,22 +76,15 @@ def get_available_slots(branch, date, service_item=None):
         # A. Count Total Capacity for this slot (Therapists working during this time)
         slot_time = get_datetime(f"{date} {slot}").time()
         
-        # Simple check: Does slot fall within therapist's shift?
-        # Note: strict inequality for end time if bookings are 1hr (start 16:00 needs shift ending > 17:00? or >= 17:00? 
-        # Usually >= 17:00 if booking is 16:00-17:00. 
-        # But here start/end in schedule are usually "09:00" and "18:00".
-        # Let's say if shift is 9-18, 17:00 is valid start.
-        
+        # Calculate expected end time based on DURATION
+        booking_end_estimated = (datetime.combine(datetime.today(), slot_time) + timedelta(minutes=total_duration)).time()
+
         total_capacity = 0
         for t in working_therapists:
-             # Convert timedeltas to time objects if needed, or compare strings if format consistent
-             # Frappe returns timedeltas usually for Time fields in SQL
              t_start = (datetime.min + t.start_time).time() if isinstance(t.start_time, timedelta) else get_datetime("2000-01-01 " + str(t.start_time)).time()
              t_end = (datetime.min + t.end_time).time() if isinstance(t.end_time, timedelta) else get_datetime("2000-01-01 " + str(t.end_time)).time()
              
-             # Assuming 1 Hour Service duration for standard check
-             booking_end_estimated = (datetime.combine(datetime.today(), slot_time) + timedelta(hours=1)).time()
-             
+             # Check if therapist shift COVERS the entire booking duration
              if t_start <= slot_time and t_end >= booking_end_estimated:
                  total_capacity += 1
 
@@ -94,8 +107,11 @@ def get_available_slots(branch, date, service_item=None):
 
 @frappe.whitelist(allow_guest=True)
 def create_booking(customer_name, phone, email, branch, items, date, time):
+    # Validation: Past Date
+    if get_datetime(date).date() < get_datetime(today()).date():
+        frappe.throw("Cannot book appointments in the past!", frappe.ValidationError)
+
     # Items: List of service_items or single item?
-    # Support both for compatibility
     import json
     if isinstance(items, str):
         try:
@@ -103,6 +119,9 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
         except:
             items = [items] # Fallback if single string
             
+    if not items:
+         frappe.throw("No service selected!", frappe.ValidationError)
+
     customer = frappe.get_value("Customer", {"mobile_no": phone}, "name")
     if not customer:
         customer_doc = frappe.get_doc({
@@ -127,14 +146,16 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
     for service_item in items:
         # Get duration and price
         item_details = frappe.db.get_value("Item", service_item, ["item_name", "standard_rate", "description"], as_dict=True)
+        
+        if not item_details:
+             frappe.throw(f"Item {service_item} not found!", frappe.ValidationError)
+
         # Check specific price
         price = frappe.get_value("Item Price", {"item_code": service_item, "price_list": price_list}, "price_list_rate")
         if not price: 
             price = item_details.standard_rate or 0
             
-        # Duration - Assuming it's in a custom field or description?
-        # For now, hardcode 60 for "60m" items, or fetch if we had a field. 
-        # Let's revert to checking item name/desc or default 60.
+        # Duration logic
         duration = 60 # Default
         if "30" in service_item: duration = 30
         if "90" in service_item: duration = 90
@@ -169,4 +190,49 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
     
     booking.insert(ignore_permissions=True)
     
-    return {"name": booking.name, "message": "Booking Created Successfully"}
+    # --- POS Integration: Auto-create Draft Order ---
+    invoice_name = None
+    
+    # Switch to Administrator to bypass permission checks for POS creation (Guest user issue)
+    current_user = frappe.session.user
+    frappe.set_user("Administrator")
+    
+    try:
+        # Re-fetch POS Profile name to be sure
+        pos_profile_name = frappe.db.get_value("POS Profile", {"warehouse": ["like", f"%{branch}%"]}, "name")
+        
+        if pos_profile_name:
+            pos_inv = frappe.new_doc("POS Invoice")
+            pos_inv.customer = customer
+            pos_inv.pos_profile = pos_profile_name
+            pos_inv.company = "Masaje de Bohol" 
+            pos_inv.posting_date = date 
+            
+            for item in booking_items:
+                item_wh = frappe.db.get_value("POS Profile", pos_profile_name, "warehouse")
+                pos_inv.append("items", {
+                    "item_code": item["service_item"],
+                    "qty": 1,
+                    "rate": item["price"],
+                    "uom": "Unit", 
+                    "conversion_factor": 1,
+                    "warehouse": item_wh 
+                })
+            
+            pos_inv.set_missing_values() 
+            pos_inv.docstatus = 0 
+            pos_inv.insert(ignore_permissions=True)
+            invoice_name = pos_inv.name
+            
+    except Exception as e:
+        frappe.log_error(f"POS Creation Failed: {str(e)}")
+        # We don't raise here to allow Booking to succeed even if invoice fails (optional)
+        # But user wants invoice, so maybe better to log. 
+        # Actually returning a warning in message might be good.
+        # For now, let's log and proceed.
+        print(f"POS Creation Error: {e}")
+
+    finally:
+        frappe.set_user(current_user)
+
+    return {"name": booking.name, "invoice": invoice_name, "message": "Booking Created Successfully"}

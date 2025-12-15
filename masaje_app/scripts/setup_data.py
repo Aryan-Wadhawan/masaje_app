@@ -114,58 +114,111 @@ def create_items():
         }).insert()
 
 def create_item_prices():
-    # (Item Code, Price List, Rate)
-    prices = [
-        ("Service-Massage-60", "Bohol Main", 1000),
-        ("Service-Massage-60", "Bohol Downtown", 800),
-        ("Product-TigerBalm", "Bohol Main", 100),
-        ("Product-TigerBalm", "Bohol Downtown", 90),
-        ("Service-Massage-60", "Standard Selling", 1200)
-    ]
+    # Helper to get all relevant items
+    services = ["Service-Massage-60", "Service-Massage-90", "Service-Manicure", "Service-Pedicure"]
+    products = ["Product-TigerBalm"]
     
-    for item, pl, rate in prices:
-        if not frappe.db.exists("Item Price", {"item_code": item, "price_list": pl}):
-            frappe.get_doc({
-                "doctype": "Item Price",
-                "item_code": item,
-                "price_list": pl,
-                "price_list_rate": rate
-            }).insert()
-            print(f"Set Price: {item} @ {pl} = {rate}")
+    # Base rates (Standard)
+    # Ideally we'd have specific logic, but for robustness let's just ensure they exist everywhere.
+    base_rates = {
+        "Service-Massage-60": 1000,
+        "Service-Massage-90": 1400,
+        "Service-Manicure": 350,
+        "Service-Pedicure": 450,
+        "Product-TigerBalm": 150
+    }
+    
+    # Specific overrides
+    overrides = {
+        "Bohol Downtown": {
+            "Service-Massage-60": 800,
+            "Service-Massage-90": 1200,
+            "Product-TigerBalm": 90
+        }
+    }
+    
+    # Get all active selling price lists
+    price_lists = frappe.get_all("Price List", filters={"selling": 1}, pluck="name")
+    if "Standard Selling" not in price_lists: price_lists.append("Standard Selling")
+    
+    for pl in price_lists:
+        for item_code, rate in base_rates.items():
+            # Apply override if exists
+            final_rate = rate
+            if pl in overrides and item_code in overrides[pl]:
+                final_rate = overrides[pl][item_code]
+                
+            # Create or Update
+            exists = frappe.db.get_value("Item Price", {"item_code": item_code, "price_list": pl}, "name")
+            if not exists:
+                frappe.get_doc({
+                    "doctype": "Item Price",
+                    "item_code": item_code,
+                    "price_list": pl,
+                    "price_list_rate": final_rate,
+                    "currency": "PHP"
+                }).insert()
+                print(f"Set Price: {item_code} @ {pl} = {final_rate}")
+            else:
+                # Optional: Force update to ensure consistency
+                frappe.db.set_value("Item Price", exists, "price_list_rate", final_rate)
+                # print(f"Ensured Price: {item_code} @ {pl} = {final_rate}")
 
 def create_employees():
-    employees = ["Therapist A", "Therapist B"]
-    for emp_name in employees:
-        if not frappe.db.exists("Employee", {"employee_name": emp_name}):
-            frappe.get_doc({
-                "doctype": "Employee",
-                "employee_name": emp_name,
-                "first_name": emp_name.split()[0],
-                "last_name": emp_name.split()[1],
-                "company": "Masaje de Bohol",
-                "status": "Active",
-                "date_of_joining": "2024-01-01",
-                "gender": "Female",
-                "date_of_birth": "1990-01-01"
-            }).insert()
-            print(f"Created Employee: {emp_name}")
+    # Define staff for each branch
+    staff = {
+        "Bohol Main": ["Therapist A", "Therapist B", "Therapist C"],
+        "Bohol Downtown": ["Therapist D", "Therapist E"]
+    }
+    
+    for branch, descriptions in staff.items():
+        for i, emp_name in enumerate(descriptions):
+            email_id = f"{emp_name.replace(' ', '.').lower()}@masaje.com"
+            
+            # Check exist by first/last or email
+            exists = frappe.db.get_value("Employee", {"employee_name": emp_name, "company": "Masaje de Bohol"}, "name")
+            
+            if not exists:
+                frappe.get_doc({
+                    "doctype": "Employee",
+                    "employee_name": emp_name,
+                    "first_name": emp_name.split()[0],
+                    "last_name": emp_name.split()[1],
+                    # "user_id": email_id, # Link only if user exists
+                    "company": "Masaje de Bohol",
+                    "status": "Active",
+                    "branch": branch, 
+                    "date_of_joining": "2024-01-01",
+                    "gender": "Female",
+                    "date_of_birth": "1990-01-01"
+                }).insert(ignore_permissions=True)
+                print(f"Created Employee: {emp_name} at {branch}")
+            else:
+                # Update branch to ensure correct setup
+                frappe.db.set_value("Employee", exists, "branch", branch)
+                print(f"Updated Branch for Employee: {emp_name} to {branch}")
 
 def create_schedules():
-    # Set 9-5 for all days for Therapist A
-    emp = frappe.db.get_value("Employee", {"employee_name": "Therapist A"}, "name")
-    if not emp: return
-
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-    for day in days:
-        name = f"{emp}-{day}"
-        if not frappe.db.exists("Therapist Schedule", name):
-             frappe.get_doc({
-                "doctype": "Therapist Schedule",
-                "therapist": emp,
-                "day_of_week": day,
-                "start_time": "09:00:00",
-                "end_time": "17:00:00"
-            }).insert(ignore_permissions=True)
-             print(f"Created Schedule for {emp} on {day}")
+    # Create 9AM - 6PM schedules for ALL active therapists for ALL 7 days
+    emps = frappe.get_all("Employee", filters={"status": "Active", "company": "Masaje de Bohol"}, fields=["name", "employee_name"])
+    
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    
+    for emp in emps:
+        for day in days:
+            # Check overlap
+            exists = frappe.db.exists("Therapist Schedule", {"therapist": emp.name, "day_of_week": day})
+            
+            if not exists:
+                 frappe.get_doc({
+                    "doctype": "Therapist Schedule",
+                    "therapist": emp.name,
+                    "day_of_week": day,
+                    "start_time": "09:00:00",
+                    "end_time": "18:00:00"
+                }).insert(ignore_permissions=True)
+                 print(f"Created Schedule for {emp.employee_name} on {day}")
+            else:
+                pass # Skip if exists
 
 
