@@ -6,7 +6,7 @@ from masaje_app.utils import create_pos_invoice_for_booking
 def on_service_booking_validate(doc, method):
     """
     Auto-calculate duration_minutes from items table on server-side.
-    This is a fallback in case client script doesn't run.
+    Also validates therapist is not double-booked.
     """
     # Calculate total duration from items
     total_duration = 0
@@ -20,6 +20,45 @@ def on_service_booking_validate(doc, method):
     elif not doc.duration_minutes:
         # Default to 60 minutes if no items and no duration set
         doc.duration_minutes = 60
+    
+    # Check for therapist conflicts (prevent double-booking)
+    if doc.therapist and doc.start_datetime and doc.end_datetime:
+        check_therapist_conflict(doc)
+
+
+def check_therapist_conflict(doc):
+    """
+    Check if therapist is already booked during the booking time.
+    Raises exception if conflict found.
+    """
+    # Find overlapping bookings for same therapist
+    conflicts = frappe.db.sql("""
+        SELECT name, start_datetime, end_datetime
+        FROM `tabService Booking`
+        WHERE therapist = %(therapist)s
+        AND name != %(name)s
+        AND status NOT IN ('Cancelled', 'Completed')
+        AND (
+            (start_datetime <= %(start)s AND end_datetime > %(start)s)
+            OR (start_datetime < %(end)s AND end_datetime >= %(end)s)
+            OR (start_datetime >= %(start)s AND end_datetime <= %(end)s)
+        )
+    """, {
+        "therapist": doc.therapist,
+        "name": doc.name or "",
+        "start": doc.start_datetime,
+        "end": doc.end_datetime
+    }, as_dict=True)
+    
+    if conflicts:
+        conflict = conflicts[0]
+        therapist_name = frappe.db.get_value("Employee", doc.therapist, "employee_name")
+        frappe.throw(
+            f"{therapist_name} is already booked from "
+            f"{frappe.format(conflict.start_datetime, 'Datetime')} to "
+            f"{frappe.format(conflict.end_datetime, 'Datetime')}. "
+            "Please choose a different therapist or time."
+        )
 
 
 def on_service_booking_insert(doc, method):
@@ -188,13 +227,15 @@ def sync_pos_items_to_booking(pos_invoice, booking_name):
     pos_items_data = {}
     
     for item in pos_invoice.items:
-        is_stock = frappe.db.get_value("Item", item.item_code, "is_stock_item")
-        if not is_stock:
+        item_data = frappe.db.get_value("Item", item.item_code, ["is_stock_item", "custom_duration_minutes"], as_dict=True)
+        if not item_data.is_stock_item:
+            # Use custom duration from Item, fallback to 60 minutes
+            duration = item_data.custom_duration_minutes or 60
             pos_service_items.add(item.item_code)
             pos_items_data[item.item_code] = {
                 "service_item": item.item_code,
                 "service_name": item.item_name,
-                "duration_minutes": 60,  # Default
+                "duration_minutes": duration,
                 "price": item.rate
             }
     
@@ -268,10 +309,10 @@ def create_service_booking_from_invoice(pos_invoice):
     
     for item in pos_invoice.items:
         # Check if it's a service item (not stock)
-        is_stock = frappe.db.get_value("Item", item.item_code, "is_stock_item")
-        if not is_stock:
-            # Default duration 60 minutes per service
-            item_duration = 60
+        item_data = frappe.db.get_value("Item", item.item_code, ["is_stock_item", "custom_duration_minutes"], as_dict=True)
+        if not item_data.is_stock_item:
+            # Use custom duration from Item, fallback to 60 minutes
+            item_duration = item_data.custom_duration_minutes or 60
             total_duration += item_duration
             service_items.append({
                 "service_item": item.item_code,

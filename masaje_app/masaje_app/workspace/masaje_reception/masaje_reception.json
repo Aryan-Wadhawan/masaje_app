@@ -9,7 +9,7 @@
    "label": "Bookings by Status"
   }
  ],
- "content": "[{\"id\": \"nc_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Dashboard</b></span>\", \"col\": 12}}, {\"id\": \"nc_1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Sales\", \"col\": 3}}, {\"id\": \"nc_2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Bookings Today\", \"col\": 3}}, {\"id\": \"nc_3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Bookings\", \"col\": 3}}, {\"id\": \"nc_4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Completed Today\", \"col\": 3}}, {\"id\": \"spacer_nc\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"chart_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Trends</b></span>\", \"col\": 12}}, {\"id\": \"chart_1\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Weekly Sales Trend\", \"col\": 6}}, {\"id\": \"chart_2\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Bookings by Status\", \"col\": 6}}, {\"id\": \"spacer_charts\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"header_1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Access</b></span>\", \"col\": 12}}, {\"id\": \"sc_booking\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Booking\", \"col\": 3}}, {\"id\": \"sc_pos\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Point of Sale\", \"col\": 3}}, {\"id\": \"sc_sched\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Therapist Schedule\", \"col\": 3}}, {\"id\": \"sc_cust\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Customers\", \"col\": 3}}, {\"id\": \"spacer_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"header_2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Operations &amp; Reports</b></span>\", \"col\": 12}}, {\"id\": \"card_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"Operations\", \"col\": 4}}, {\"id\": \"card_mgmt\", \"type\": \"card\", \"data\": {\"card_name\": \"Management\", \"col\": 4}}, {\"id\": \"card_rpt\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}]",
+ "content": "[{\"id\": \"nc_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Dashboard</b></span>\", \"col\": 12}}, {\"id\": \"nc_1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Today's Sales\", \"col\": 3}}, {\"id\": \"nc_2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Bookings Today\", \"col\": 3}}, {\"id\": \"nc_3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Bookings\", \"col\": 3}}, {\"id\": \"nc_4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Completed Today\", \"col\": 3}}, {\"id\": \"spacer_nc\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"chart_header\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Trends</b></span>\", \"col\": 12}}, {\"id\": \"chart_1\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Weekly Sales Trend\", \"col\": 6}}, {\"id\": \"chart_2\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Bookings by Status\", \"col\": 6}}, {\"id\": \"spacer_charts\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"header_1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Quick Access</b></span>\", \"col\": 12}}, {\"id\": \"pos_button\", \"type\": \"paragraph\", \"data\": {\"text\": \"<div style='margin-bottom: 15px;'><a href='/app/point-of-sale' class='btn btn-primary btn-lg' style='font-size: 16px; padding: 12px 30px;'><i class='fa fa-shopping-cart'></i> Open Point of Sale</a></div>\", \"col\": 12}}, {\"id\": \"sc_booking\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"New Booking\", \"col\": 3}}, {\"id\": \"sc_sched\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Therapist Schedule\", \"col\": 3}}, {\"id\": \"sc_cust\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Customers\", \"col\": 3}}, {\"id\": \"spacer_1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"header_2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Operations &amp; Reports</b></span>\", \"col\": 12}}, {\"id\": \"card_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"Operations\", \"col\": 4}}, {\"id\": \"card_mgmt\", \"type\": \"card\", \"data\": {\"card_name\": \"Management\", \"col\": 4}}, {\"id\": \"card_rpt\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}]",
  "creation": "2025-12-15 16:38:45.260737",
  "custom_blocks": [],
  "docstatus": 0,
@@ -168,7 +168,7 @@
    "type": "Link"
   }
  ],
- "modified": "2025-12-16 14:09:17.751150",
+ "modified": "2025-12-16 20:40:12.381451",
  "modified_by": "Administrator",
  "module": "Masaje App",
  "name": "Masaje Reception",
@@ -205,13 +205,6 @@
    "label": "New Booking",
    "link_to": "Service Booking",
    "type": "DocType"
-  },
-  {
-   "color": "Blue",
-   "doc_view": "",
-   "label": "Point of Sale",
-   "link_to": "point-of-sale",
-   "type": "Page"
   },
   {
    "color": "Grey",
