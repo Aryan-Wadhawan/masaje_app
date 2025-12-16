@@ -287,6 +287,7 @@ class TestMasajeIntegration(FrappeTestCase):
     def test_in_person_booking_flow(self):
         """
         Scenario: Receptionist creates booking via Backoffice (Desk).
+        Walk-in flow: Booking created -> Draft POS Invoice auto-created
         """
         date = self.get_next_monday()
         
@@ -308,6 +309,21 @@ class TestMasajeIntegration(FrappeTestCase):
         }).insert()
         
         self.assertTrue(doc.name)
+        
         # Verify it consumed the slot
         slots = get_available_slots(self.branch, date, [self.service_item])
         self.assertNotIn("13:00", slots)
+        
+        # Reload to get updated fields (invoice link from after_insert hook)
+        doc.reload()
+        
+        # Verify POS Invoice was auto-created (walk-in support)
+        self.assertTrue(doc.invoice, "Walk-in booking should auto-create a draft POS Invoice")
+        
+        # Verify invoice details
+        inv = frappe.get_doc("POS Invoice", doc.invoice)
+        self.assertEqual(inv.docstatus, 0, "Invoice should be in Draft status")
+        self.assertEqual(inv.customer, "Walk-in Guest", "Invoice customer should match booking")
+        self.assertEqual(len(inv.items), 1, "Invoice should have 1 item")
+        self.assertEqual(inv.items[0].item_code, self.service_item, "Invoice item should match service")
+

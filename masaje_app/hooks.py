@@ -18,3 +18,14 @@ fixtures = [
     "Branch",
     "Custom DocPerm"
 ]
+
+# Document Events
+# ----------------
+# Hook on document methods and events
+
+doc_events = {
+    "Service Booking": {
+        "after_insert": "masaje_app.events.on_service_booking_insert",
+        "on_update": "masaje_app.events.on_service_booking_update"
+    }
+}

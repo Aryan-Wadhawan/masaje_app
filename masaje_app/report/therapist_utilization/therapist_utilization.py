@@ -22,46 +22,51 @@ def execute(filters=None):
         {"label": _("Revenue (Est)"), "fieldname": "revenue", "fieldtype": "Currency", "width": 120},
     ]
 
-    # --- Data Query ---
-    conditions = ""
+    # --- Build Query with Parameterized Filters ---
+    conditions = ["s.status != 'Cancelled'", "s.therapist IS NOT NULL"]
+    query_filters = {}
+    
     if filters.get("from_date") and filters.get("to_date"):
-        conditions += f" AND s.booking_date BETWEEN '{filters.get('from_date')}' AND '{filters.get('to_date')}'"
+        conditions.append("s.booking_date BETWEEN %(from_date)s AND %(to_date)s")
+        query_filters["from_date"] = filters.get("from_date")
+        query_filters["to_date"] = filters.get("to_date")
     
     if filters.get("branch"):
-        conditions += f" AND s.branch = '{filters.get('branch')}'"
+        conditions.append("s.branch = %(branch)s")
+        query_filters["branch"] = filters.get("branch")
 
     if filters.get("therapist"):
-        conditions += f" AND s.therapist_name = '{filters.get('therapist')}'" # Assuming filter passes name or ID? Usually ID. 
-        # Actually standard practice is to pass Name(ID) to Link field.
-        # Let's check filter definition. If Link 'Employee', value is name (ID).
-        conditions += f" AND s.therapist = '{filters.get('therapist')}'"
+        conditions.append("s.therapist = %(therapist)s")
+        query_filters["therapist"] = filters.get("therapist")
 
-    # We join with POS Invoice to get revenue if possible, or just sum bookings
-    # Let's do a left join to be safe
+    where_clause = " AND ".join(conditions)
+    
+    # Join with POS Invoice to get actual revenue
     sql = f"""
         SELECT 
             s.therapist as therapist,
             s.branch as branch,
             COUNT(s.name) as total_bookings,
-            SUM(s.duration_minutes) as booked_minutes,
-            SUM(p.grand_total) as revenue
+            COALESCE(SUM(s.duration_minutes), 0) as booked_minutes,
+            COALESCE(SUM(p.grand_total), 0) as revenue
         FROM `tabService Booking` s
-        LEFT JOIN `tabPOS Invoice` p ON p.name = s.invoice
-        WHERE s.status != 'Cancelled' {conditions}
+        LEFT JOIN `tabPOS Invoice` p ON p.name = s.invoice AND p.docstatus = 1
+        WHERE {where_clause}
         GROUP BY s.therapist, s.branch
         ORDER BY booked_minutes DESC
     """
     
-    data = frappe.db.sql(sql, as_dict=True)
+    data = frappe.db.sql(sql, query_filters, as_dict=True)
     
-    chart = []
+    # --- Chart ---
+    chart = None
     if data:
-        labels = [d.get("therapist") for d in data]
-        values = [d.get("booked_minutes") for d in data]
+        labels = [str(d.get("therapist") or "Unknown") for d in data]
+        values = [int(d.get("booked_minutes") or 0) for d in data]
         chart = {
             "data": {
                 "labels": labels,
-                "datasets": [{"name": "Booked Minutes", "values": values}]
+                "datasets": [{"name": _("Booked Minutes"), "values": values}]
             },
             "type": "bar"
         }

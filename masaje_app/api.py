@@ -201,8 +201,7 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
         # Re-fetch POS Profile name to be sure
         pos_profile_name = frappe.db.get_value("POS Profile", {"warehouse": ["like", f"%{branch}%"]}, "name")
         
-            # Fetch Linked Data
-            profile_doc = frappe.get_doc("POS Profile", pos_profile_name)
+        if pos_profile_name:
             # Fetch Linked Data
             profile_doc = frappe.get_doc("POS Profile", pos_profile_name)
             cost_center = frappe.db.get_value("Branch", branch, "default_cost_center")
@@ -218,11 +217,12 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
             
             # Commission Logic (Simple 10% for now)
             total_comm = 0.0
+            item_wh = frappe.db.get_value("POS Profile", pos_profile_name, "warehouse")
+            
             for item in booking_items:
                 item_comm = item["price"] * 0.10
                 total_comm += item_comm
                 
-                item_wh = frappe.db.get_value("POS Profile", pos_profile_name, "warehouse")
                 pos_inv.append("items", {
                     "item_code": item["service_item"],
                     "qty": 1,
@@ -234,32 +234,29 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
                 })
             
             # Sales Team Logic (Standard Commission)
-            sales_person = frappe.db.get_value("Sales Person", {"employee": booking.therapist, "enabled": 1})
-            if sales_person:
-                pos_inv.append("sales_team", {
-                    "sales_person": sales_person,
-                    "allocated_percentage": 100,
-                    # "allocated_amount": total_comm # Optional, usually calculated by system based on %
-                })
-            
-            # Remove custom logic
-            # pos_inv.total_commission = total_comm
-            # pos_inv.amount_eligible_for_commission = total_comm / 0.10 if total_comm else 0
+            if booking.therapist:
+                sales_person = frappe.db.get_value("Sales Person", {"employee": booking.therapist, "enabled": 1})
+                if sales_person:
+                    pos_inv.append("sales_team", {
+                        "sales_person": sales_person,
+                        "allocated_percentage": 100,
+                    })
             
             pos_inv.set_missing_values() 
             pos_inv.docstatus = 0 
             pos_inv.insert(ignore_permissions=True)
             invoice_name = pos_inv.name
             
-            # Update Booking (keeping for quick view)
-            frappe.db.set_value("Service Booking", booking.name, "commission_amount", total_comm)
+            # Update Booking with commission and invoice link
+            frappe.db.set_value("Service Booking", booking.name, {
+                "commission_amount": total_comm,
+                "invoice": invoice_name
+            })
+        else:
+            frappe.log_error(f"POS Profile not found for branch: {branch}", "Masaje Booking")
             
     except Exception as e:
-        frappe.log_error(f"POS Creation Failed: {str(e)}")
-        # We don't raise here to allow Booking to succeed even if invoice fails (optional)
-        # But user wants invoice, so maybe better to log. 
-        # Actually returning a warning in message might be good.
-        # For now, let's log and proceed.
+        frappe.log_error(f"POS Creation Failed: {str(e)}", "Masaje Booking")
         print(f"POS Creation Error: {e}")
 
     finally:
