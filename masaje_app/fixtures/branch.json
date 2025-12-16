@@ -1,0 +1,23 @@
+[
+ {
+  "branch": "Bohol Downtown",
+  "docstatus": 0,
+  "doctype": "Branch",
+  "modified": "2025-12-15 15:26:23.736356",
+  "name": "Bohol Downtown"
+ },
+ {
+  "branch": "Test Branch Debug",
+  "docstatus": 0,
+  "doctype": "Branch",
+  "modified": "2025-12-15 16:33:40.210197",
+  "name": "Test Branch Debug"
+ },
+ {
+  "branch": "Bohol Main",
+  "docstatus": 0,
+  "doctype": "Branch",
+  "modified": "2025-12-15 15:26:23.621551",
+  "name": "Bohol Main"
+ }
+]

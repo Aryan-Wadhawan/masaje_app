@@ -52,13 +52,13 @@ def get_available_slots(branch, date, service_item=None):
             total_duration += duration
 
     # 1. Get List of Therapists working at this Branch on this Day
-    # Join Therapist Schedule with Employee to filter by Branch
+    # Filter Schedules directly by branch (Dynamic Branching)
     working_therapists = frappe.db.sql("""
         SELECT ts.therapist, ts.start_time, ts.end_time 
         FROM `tabTherapist Schedule` ts
         JOIN `tabEmployee` emp ON ts.therapist = emp.name
         WHERE ts.day_of_week = %s 
-        AND emp.branch = %s
+        AND ts.branch = %s
         AND ts.is_off = 0
         AND emp.status = 'Active'
     """, (day_name, branch), as_dict=True)
@@ -201,14 +201,27 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
         # Re-fetch POS Profile name to be sure
         pos_profile_name = frappe.db.get_value("POS Profile", {"warehouse": ["like", f"%{branch}%"]}, "name")
         
-        if pos_profile_name:
+            # Fetch Linked Data
+            profile_doc = frappe.get_doc("POS Profile", pos_profile_name)
+            # Fetch Linked Data
+            profile_doc = frappe.get_doc("POS Profile", pos_profile_name)
+            cost_center = frappe.db.get_value("Branch", branch, "default_cost_center")
+            
+            # Create Invoice
             pos_inv = frappe.new_doc("POS Invoice")
             pos_inv.customer = customer
             pos_inv.pos_profile = pos_profile_name
             pos_inv.company = "Masaje de Bohol" 
             pos_inv.posting_date = date 
+            pos_inv.branch = branch 
+            pos_inv.update_stock = profile_doc.update_stock 
             
+            # Commission Logic (Simple 10% for now)
+            total_comm = 0.0
             for item in booking_items:
+                item_comm = item["price"] * 0.10
+                total_comm += item_comm
+                
                 item_wh = frappe.db.get_value("POS Profile", pos_profile_name, "warehouse")
                 pos_inv.append("items", {
                     "item_code": item["service_item"],
@@ -216,13 +229,30 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
                     "rate": item["price"],
                     "uom": "Unit", 
                     "conversion_factor": 1,
-                    "warehouse": item_wh 
+                    "warehouse": item_wh,
+                    "cost_center": cost_center 
                 })
+            
+            # Sales Team Logic (Standard Commission)
+            sales_person = frappe.db.get_value("Sales Person", {"employee": booking.therapist, "enabled": 1})
+            if sales_person:
+                pos_inv.append("sales_team", {
+                    "sales_person": sales_person,
+                    "allocated_percentage": 100,
+                    # "allocated_amount": total_comm # Optional, usually calculated by system based on %
+                })
+            
+            # Remove custom logic
+            # pos_inv.total_commission = total_comm
+            # pos_inv.amount_eligible_for_commission = total_comm / 0.10 if total_comm else 0
             
             pos_inv.set_missing_values() 
             pos_inv.docstatus = 0 
             pos_inv.insert(ignore_permissions=True)
             invoice_name = pos_inv.name
+            
+            # Update Booking (keeping for quick view)
+            frappe.db.set_value("Service Booking", booking.name, "commission_amount", total_comm)
             
     except Exception as e:
         frappe.log_error(f"POS Creation Failed: {str(e)}")

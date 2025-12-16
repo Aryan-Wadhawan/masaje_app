@@ -138,31 +138,42 @@ def create_item_prices():
     }
     
     # Get all active selling price lists
-    price_lists = frappe.get_all("Price List", filters={"selling": 1}, pluck="name")
-    if "Standard Selling" not in price_lists: price_lists.append("Standard Selling")
+    # Aggressive Price Setup
+    selling_pls = frappe.get_all("Price List", {"selling": 1}, pluck="name")
     
-    for pl in price_lists:
-        for item_code, rate in base_rates.items():
-            # Apply override if exists
-            final_rate = rate
-            if pl in overrides and item_code in overrides[pl]:
-                final_rate = overrides[pl][item_code]
+    # Standard rates for types
+    rates = {
+        "Service": 800,
+        "Product": 1500, # Tiger Balm etc
+        "Services": 1000
+    }
+    
+    items = frappe.get_all("Item", fields=["name", "item_code", "item_group"])
+    
+    for pl in selling_pls:
+        for item in items:
+            # Check if price exists
+            if not frappe.db.exists("Item Price", {"item_code": item.item_code, "price_list": pl}):
+                # Determine rate
+                rate = rates.get(item.item_group, 500)
                 
-            # Create or Update
-            exists = frappe.db.get_value("Item Price", {"item_code": item_code, "price_list": pl}, "name")
-            if not exists:
+                # Specific overrides
+                if "Tiger" in item.item_code: rate = 300
+                if "Manicure" in item.item_code: rate = 450
+                
                 frappe.get_doc({
                     "doctype": "Item Price",
-                    "item_code": item_code,
+                    "item_code": item.item_code,
                     "price_list": pl,
-                    "price_list_rate": final_rate,
+                    "price_list_rate": rate,
                     "currency": "PHP"
-                }).insert()
-                print(f"Set Price: {item_code} @ {pl} = {final_rate}")
+                }).insert(ignore_permissions=True)
+                print(f"Set Price: {item.item_code} -> {rate} in {pl}")
             else:
                 # Optional: Force update to ensure consistency
-                frappe.db.set_value("Item Price", exists, "price_list_rate", final_rate)
-                # print(f"Ensured Price: {item_code} @ {pl} = {final_rate}")
+                # This part of the original code was trying to update, but the new logic focuses on creation if missing.
+                # If an update is desired, it would need to be re-implemented here based on the new rate determination.
+                pass # For now, skip update if price already exists
 
 def create_employees():
     # Define staff for each branch

@@ -10,5 +10,11 @@ app_license = "mit"
 # ------------------
 
 # include js, css files in header of desk.html
-app_include_js = "masaje_app/js/service_booking_calendar.js"
+app_include_js = "/assets/masaje_app/js/service_booking_calendar.js"
 # app_include_css = "/assets/masaje_app/css/masaje_app.css"
+
+fixtures = [
+    "Item Price",
+    "Branch",
+    "Custom DocPerm"
+]
