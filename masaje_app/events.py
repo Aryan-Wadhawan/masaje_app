@@ -6,13 +6,18 @@ from masaje_app.utils import create_pos_invoice_for_booking
 def on_service_booking_validate(doc, method):
     """
     Auto-calculate duration_minutes from items table on server-side.
-    Also validates therapist is not double-booked.
+    Also calculates start_datetime/end_datetime and validates therapist conflicts.
     """
-    # Calculate total duration from items
+    from frappe.utils import get_datetime
+    from datetime import datetime, timedelta
+    
+    # Step 1: Calculate total duration from items (fetch from Item doctype)
     total_duration = 0
     if doc.items:
         for item in doc.items:
-            total_duration += (item.duration_minutes or 0)
+            # Get duration from Item's custom_duration_minutes field
+            item_duration = frappe.db.get_value("Item", item.service_item, "custom_duration_minutes")
+            total_duration += (item_duration or 60)  # Default 60 if not set
     
     # Set duration if calculated from items
     if total_duration > 0:
@@ -21,7 +26,30 @@ def on_service_booking_validate(doc, method):
         # Default to 60 minutes if no items and no duration set
         doc.duration_minutes = 60
     
-    # Check for therapist conflicts (prevent double-booking)
+    # Step 2: Calculate start_datetime and end_datetime
+    if doc.booking_date and doc.time_slot:
+        # Combine date and time  
+        booking_date = get_datetime(doc.booking_date).date()
+        
+        # Handle time_slot as string "HH:MM" or timedelta
+        if isinstance(doc.time_slot, str):
+            time_parts = doc.time_slot.split(":")
+            hour = int(time_parts[0])
+            minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+            start_dt = datetime.combine(booking_date, datetime.min.time().replace(hour=hour, minute=minute))
+        elif isinstance(doc.time_slot, timedelta):
+            # time_slot stored as timedelta from midnight
+            start_dt = datetime.combine(booking_date, datetime.min.time()) + doc.time_slot
+        else:
+            start_dt = datetime.combine(booking_date, doc.time_slot)
+        
+        doc.start_datetime = start_dt
+        
+        # Calculate end time
+        duration = doc.duration_minutes or 60
+        doc.end_datetime = start_dt + timedelta(minutes=duration)
+    
+    # Step 3: Check for therapist conflicts (prevent double-booking)
     if doc.therapist and doc.start_datetime and doc.end_datetime:
         check_therapist_conflict(doc)
 

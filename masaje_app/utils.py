@@ -56,6 +56,10 @@ def create_pos_invoice_for_booking(booking_doc, save=True):
         pos_inv.branch = booking_doc.branch
         pos_inv.update_stock = profile_doc.update_stock
         
+        # Copy therapist from booking
+        if booking_doc.therapist:
+            pos_inv.therapist = booking_doc.therapist
+        
         # Get items from child table or single service_item
         booking_items = []
         
