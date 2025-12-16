@@ -82,15 +82,24 @@ def create_pos_invoice_for_booking(booking_doc, save=True):
             item_comm = (item.get("price") or 0) * 0.10
             total_comm += item_comm
             
-            pos_inv.append("items", {
+            # Check if item is a stock item - only add warehouse for stock items
+            is_stock_item = frappe.db.get_value("Item", item["service_item"], "is_stock_item")
+            
+            item_row = {
                 "item_code": item["service_item"],
                 "qty": 1,
                 "rate": item.get("price") or 0,
                 "uom": "Unit",
                 "conversion_factor": 1,
-                "warehouse": warehouse,
                 "cost_center": cost_center
-            })
+            }
+            
+            # Only add warehouse for stock items
+            if is_stock_item:
+                item_row["warehouse"] = warehouse
+            
+            pos_inv.append("items", item_row)
+
         
         # Sales Team Logic
         if booking_doc.therapist:

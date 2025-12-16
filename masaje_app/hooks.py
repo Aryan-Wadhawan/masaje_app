@@ -26,10 +26,16 @@ fixtures = [
 
 doc_events = {
     "Service Booking": {
+        "validate": "masaje_app.events.on_service_booking_validate",
         "after_insert": "masaje_app.events.on_service_booking_insert",
-        "on_update": "masaje_app.events.on_service_booking_update"
+        "on_update": "masaje_app.events.on_service_booking_update",
+        "on_trash": "masaje_app.events.on_service_booking_trash"
     },
+
     "POS Invoice": {
-        "on_submit": "masaje_app.events.on_pos_invoice_submit"
+        "on_submit": "masaje_app.events.on_pos_invoice_submit",
+        "on_cancel": "masaje_app.events.on_pos_invoice_cancel",
+        "on_trash": "masaje_app.events.on_pos_invoice_trash"
     }
 }
+

@@ -1,0 +1,21 @@
+{
+    "creation": "2025-12-16 16:30:00.000000",
+    "docstatus": 0,
+    "doctype": "Number Card",
+    "document_type": "Service Booking",
+    "dynamic_filters_json": "[]",
+    "filters_json": "[[\"Service Booking\",\"status\",\"=\",\"Pending\",false]]",
+    "function": "Count",
+    "idx": 0,
+    "is_public": 1,
+    "is_standard": 1,
+    "label": "Pending Bookings",
+    "modified": "2025-12-16 16:30:00.000000",
+    "modified_by": "Administrator",
+    "module": "Masaje App",
+    "name": "Pending Bookings",
+    "owner": "Administrator",
+    "show_percentage_stats": 0,
+    "stats_time_interval": "Daily",
+    "type": "Document Type"
+}
