@@ -16,7 +16,8 @@ app_include_js = "/assets/masaje_app/js/service_booking_calendar.js"
 fixtures = [
     "Item Price",
     "Branch",
-    "Custom DocPerm"
+    "Custom DocPerm",
+    "Custom Field"
 ]
 
 # Document Events
@@ -27,5 +28,8 @@ doc_events = {
     "Service Booking": {
         "after_insert": "masaje_app.events.on_service_booking_insert",
         "on_update": "masaje_app.events.on_service_booking_update"
+    },
+    "POS Invoice": {
+        "on_submit": "masaje_app.events.on_pos_invoice_submit"
     }
 }

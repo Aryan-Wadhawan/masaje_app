@@ -47,3 +47,50 @@ def on_service_booking_update(doc, method):
                 "Please delete it manually if not needed.",
                 alert=True
             )
+
+
+def on_pos_invoice_submit(doc, method):
+    """
+    Calculate and store commission when POS Invoice is submitted.
+    Uses the therapist's commission_rate from Employee record.
+    """
+    # Check if therapist is set
+    therapist = doc.get("therapist")
+    if not therapist:
+        return
+    
+    # Get commission rate from Employee
+    commission_rate = frappe.db.get_value("Employee", therapist, "commission_rate") or 0
+    
+    if not commission_rate:
+        return
+    
+    # Calculate commission on service items (grand_total)
+    commission_amount = (doc.grand_total or 0) * (commission_rate / 100)
+    
+    # Update the document directly using db_set (works during submit)
+    # Set BOTH the standard field (total_commission) and custom field (commission_amount)
+    doc.db_set("total_commission", commission_amount, update_modified=False)
+    doc.db_set("commission_amount", commission_amount, update_modified=False)  # Custom field for list view
+    doc.db_set("commission_rate", commission_rate, update_modified=False)
+    doc.db_set("amount_eligible_for_commission", doc.grand_total, update_modified=False)
+
+    
+    # Also update linked Service Booking if exists
+    linked_booking = frappe.db.get_value(
+        "Service Booking", 
+        {"invoice": doc.name}, 
+        "name"
+    )
+    
+    if linked_booking:
+        frappe.db.set_value("Service Booking", linked_booking, {
+            "commission_amount": commission_amount,
+            "therapist": therapist
+        }, update_modified=False)
+    
+    frappe.msgprint(
+        f"Commission of {commission_rate}% ({frappe.format_value(commission_amount, {'fieldtype': 'Currency'})}) "
+        f"calculated for therapist.",
+        alert=True
+    )

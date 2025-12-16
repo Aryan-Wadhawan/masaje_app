@@ -1,0 +1,21 @@
+[
+    {
+        "doctype": "Custom Field",
+        "dt": "Employee",
+        "fieldname": "commission_rate",
+        "fieldtype": "Percent",
+        "label": "Commission Rate",
+        "insert_after": "grade",
+        "description": "Commission percentage for services performed by this therapist"
+    },
+    {
+        "doctype": "Custom Field",
+        "dt": "POS Invoice",
+        "fieldname": "therapist",
+        "fieldtype": "Link",
+        "label": "Therapist",
+        "options": "Employee",
+        "insert_after": "customer_name",
+        "description": "Therapist who performed the service"
+    }
+]
