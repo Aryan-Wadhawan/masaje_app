@@ -153,6 +153,24 @@ def setup_services():
     """Create all service items with prices."""
     print("\n4. Setting up Services...")
     
+    # Ensure UOM exists
+    uom = "Nos"
+    if not frappe.db.exists("UOM", uom):
+        # Try "Unit" instead
+        if frappe.db.exists("UOM", "Unit"):
+            uom = "Unit"
+        else:
+            # Create Nos UOM
+            try:
+                frappe.get_doc({
+                    "doctype": "UOM",
+                    "uom_name": "Nos"
+                }).insert()
+                print(f"   ✓ Created UOM: Nos")
+            except Exception as e:
+                print(f"   ⚠ Could not create UOM: {e}, trying Unit")
+                uom = "Unit"
+    
     for service in SERVICES:
         name, english, price, duration, group, sauna_only = service
         item_code = name.replace(" ", "-").replace("/", "-").replace("+", "-")
@@ -169,7 +187,7 @@ def setup_services():
             "description": english,
             "item_group": group,
             "is_stock_item": 0,
-            "stock_uom": "Nos",  # Unit of Measure for services
+            "stock_uom": uom,  # Unit of Measure for services
             "custom_duration_minutes": duration
         })
         item.insert()
