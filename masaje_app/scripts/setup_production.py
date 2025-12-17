@@ -93,12 +93,37 @@ def setup_item_groups():
     """Create item groups for service categories."""
     print("\n2. Setting up Item Groups...")
     
+    # Get or create root parent (All Item Groups)
+    root_parent = None
+    if frappe.db.exists("Item Group", "All Item Groups"):
+        root_parent = "All Item Groups"
+    else:
+        # Check if there's a root item group
+        root_groups = frappe.db.get_all("Item Group", 
+            filters={"is_group": 1, "parent_item_group": ["in", ["", None]]},
+            limit=1)
+        if root_groups:
+            root_parent = root_groups[0].name
+        else:
+            # Create All Item Groups as root
+            try:
+                frappe.get_doc({
+                    "doctype": "Item Group",
+                    "item_group_name": "All Item Groups",
+                    "is_group": 1
+                }).insert()
+                root_parent = "All Item Groups"
+                print("   ✓ Created: All Item Groups (root)")
+            except Exception as e:
+                print(f"   ⚠ Could not create root: {e}, using empty parent")
+                root_parent = ""
+    
     # Ensure parent group exists
     if not frappe.db.exists("Item Group", "Services"):
         frappe.get_doc({
             "doctype": "Item Group",
             "item_group_name": "Services",
-            "parent_item_group": "All Item Groups",
+            "parent_item_group": root_parent or "",
             "is_group": 1
         }).insert()
         print("   ✓ Created: Services (parent)")
