@@ -103,6 +103,25 @@ def setup_employees():
     created_count = 0
     default_branch = "CPG East Branch"  # Home branch for admin purposes
     
+    # Check if branch exists
+    if not frappe.db.exists("Branch", default_branch):
+        print(f"   ⚠ Branch '{default_branch}' not found, employees will be created without branch")
+        default_branch = None
+    
+    # Check if Gender field accepts "Female" or needs different format
+    gender_value = None
+    if frappe.db.exists("Gender", "Female"):
+        gender_value = "Female"
+    elif frappe.db.exists("Gender", "F"):
+        gender_value = "F"
+    else:
+        # Try to get first available gender or use None
+        genders = frappe.db.get_all("Gender", limit=1)
+        if genders:
+            gender_value = genders[0].name
+        else:
+            print("   ⚠ No Gender found, employees will be created without gender")
+    
     for surname, first_name, middle_name, mobile in THERAPISTS:
         # Create unique employee name
         full_name = f"{first_name} {surname}"
@@ -116,23 +135,34 @@ def setup_employees():
         # Clean mobile number
         mobile_clean = mobile.replace("-", "")
         
-        emp = frappe.get_doc({
+        emp_data = {
             "doctype": "Employee",
             "first_name": first_name,
             "middle_name": middle_name if middle_name else None,
             "last_name": surname,
             "employee_name": full_name,
-            "gender": "Female",  # Default, can be updated
             "date_of_birth": "1990-01-01",  # Placeholder
             "date_of_joining": "2024-01-01",  # Placeholder
             "status": "Active",
             "designation": "Therapist",
-            "branch": default_branch,
             "cell_number": mobile_clean
-        })
-        emp.insert()
-        created_count += 1
-        print(f"   ✓ Created: {full_name} ({mobile})")
+        }
+        
+        # Add gender if available
+        if gender_value:
+            emp_data["gender"] = gender_value
+        
+        # Add branch if available
+        if default_branch:
+            emp_data["branch"] = default_branch
+        
+        try:
+            emp = frappe.get_doc(emp_data)
+            emp.insert()
+            created_count += 1
+            print(f"   ✓ Created: {full_name} ({mobile})")
+        except Exception as e:
+            print(f"   ❌ Failed to create {full_name}: {e}")
     
     frappe.db.commit()
     print(f"\n   Created {created_count} new employees, Total: {len(THERAPISTS)} therapists")
