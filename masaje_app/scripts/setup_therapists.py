@@ -103,24 +103,24 @@ def setup_employees():
     created_count = 0
     default_branch = "CPG East Branch"  # Home branch for admin purposes
     
+    # Get company (required field)
+    company = frappe.defaults.get_global_default("company")
+    if not company:
+        companies = frappe.db.get_all("Company", limit=1)
+        if companies:
+            company = companies[0].name
+        else:
+            print("   ❌ No Company found! Please create a company first.")
+            return
+    
     # Check if branch exists
     if not frappe.db.exists("Branch", default_branch):
         print(f"   ⚠ Branch '{default_branch}' not found, employees will be created without branch")
         default_branch = None
     
-    # Check if Gender field accepts "Female" or needs different format
-    gender_value = None
-    if frappe.db.exists("Gender", "Female"):
-        gender_value = "Female"
-    elif frappe.db.exists("Gender", "F"):
-        gender_value = "F"
-    else:
-        # Try to get first available gender or use None
-        genders = frappe.db.get_all("Gender", limit=1)
-        if genders:
-            gender_value = genders[0].name
-        else:
-            print("   ⚠ No Gender found, employees will be created without gender")
+    # Gender is typically a Select field with values "Male", "Female", "Other"
+    # Use string directly (not a doctype)
+    gender_value = "Female"  # Default value
     
     for surname, first_name, middle_name, mobile in THERAPISTS:
         # Create unique employee name
@@ -141,16 +141,14 @@ def setup_employees():
             "middle_name": middle_name if middle_name else None,
             "last_name": surname,
             "employee_name": full_name,
+            "gender": gender_value,
+            "company": company,  # Required field
             "date_of_birth": "1990-01-01",  # Placeholder
             "date_of_joining": "2024-01-01",  # Placeholder
             "status": "Active",
             "designation": "Therapist",
             "cell_number": mobile_clean
         }
-        
-        # Add gender if available
-        if gender_value:
-            emp_data["gender"] = gender_value
         
         # Add branch if available
         if default_branch:
