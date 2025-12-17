@@ -150,5 +150,26 @@ def clear_data():
     print("Ready for production data entry.")
 
 
+def clear_therapist_schedules_only():
+    """
+    Helper: clear only Therapist Schedule records.
+    Does NOT touch employees, bookings, invoices, or any other data.
+    """
+    print("=" * 60)
+    print("CLEARING THERAPIST SCHEDULES ONLY")
+    print("=" * 60)
+
+    schedules = frappe.get_all("Therapist Schedule", pluck="name")
+    for name in schedules:
+        try:
+            frappe.delete_doc("Therapist Schedule", name, force=True, ignore_permissions=True)
+        except Exception as e:
+            print(f"   Failed to delete {name}: {e}")
+
+    print(f"   Deleted {len(schedules)} therapist schedules")
+    print("=" * 60)
+    print("DONE")
+
+
 if __name__ == "__main__":
     clear_data()
