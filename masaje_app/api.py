@@ -22,10 +22,26 @@ def get_services(branch):
     return items
 
 @frappe.whitelist(allow_guest=True)
+def get_therapists():
+    """
+    Get all active therapists (no branch filtering).
+    Therapists can work at any branch.
+    """
+    return frappe.db.sql("""
+        SELECT name, employee_name, cell_number
+        FROM `tabEmployee`
+        WHERE designation = 'Therapist' 
+        AND status = 'Active'
+        ORDER BY employee_name
+    """, as_dict=True)
+
+
+@frappe.whitelist(allow_guest=True)
 def get_available_slots(branch, date, service_item=None):
     """
     Returns available time slots based on Therapist Capacity.
-    Capacity = Total Therapists Working - Active Bookings
+    Capacity = Total Active Therapists - Active Bookings
+    Note: Therapists can work at any branch (no branch filtering).
     """
     date_obj = get_datetime(date)
     day_name = date_obj.strftime("%A")
@@ -51,47 +67,28 @@ def get_available_slots(branch, date, service_item=None):
             if "90" in str(item): duration = 90
             total_duration += duration
 
-    # 1. Get List of Therapists working at this Branch on this Day
-    # Filter Schedules directly by branch (Dynamic Branching)
-    working_therapists = frappe.db.sql("""
-        SELECT ts.therapist, ts.start_time, ts.end_time 
-        FROM `tabTherapist Schedule` ts
-        JOIN `tabEmployee` emp ON ts.therapist = emp.name
-        WHERE ts.day_of_week = %s 
-        AND ts.branch = %s
-        AND ts.is_off = 0
-        AND emp.status = 'Active'
-    """, (day_name, branch), as_dict=True)
+    # 1. Get ALL active therapists (no branch/schedule filtering)
+    # Therapists can work at any branch as per business requirement
+    working_therapists = frappe.get_all("Employee",
+        filters={"designation": "Therapist", "status": "Active"},
+        fields=["name"],
+        ignore_permissions=True
+    )
 
     if not working_therapists:
         return []
+    
+    total_capacity = len(working_therapists)
 
-    # 2. Define Time Slots (e.g. 9am to 6pm)
-    possible_slots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"]
+    # 2. Define Time Slots (11am to 10pm based on operating hours)
+    possible_slots = ["11:00", "12:00", "13:00", "14:00", "15:00", "16:00", 
+                      "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"]
     
     available_slots = []
 
     # 3. Check Capacity for each slot
     for slot in possible_slots:
-        # A. Count Total Capacity for this slot (Therapists working during this time)
-        slot_time = get_datetime(f"{date} {slot}").time()
-        
-        # Calculate expected end time based on DURATION
-        booking_end_estimated = (datetime.combine(datetime.today(), slot_time) + timedelta(minutes=total_duration)).time()
-
-        total_capacity = 0
-        for t in working_therapists:
-             t_start = (datetime.min + t.start_time).time() if isinstance(t.start_time, timedelta) else get_datetime("2000-01-01 " + str(t.start_time)).time()
-             t_end = (datetime.min + t.end_time).time() if isinstance(t.end_time, timedelta) else get_datetime("2000-01-01 " + str(t.end_time)).time()
-             
-             # Check if therapist shift COVERS the entire booking duration
-             if t_start <= slot_time and t_end >= booking_end_estimated:
-                 total_capacity += 1
-
-        if total_capacity == 0:
-            continue
-
-        # B. Count Active Bookings at this slot + branch
+        # Count Active Bookings at this slot + branch
         booked_count = frappe.db.count("Service Booking", {
             "booking_date": date,
             "branch": branch,
@@ -99,9 +96,14 @@ def get_available_slots(branch, date, service_item=None):
             "status": ["in", ["Pending", "Approved"]]
         })
 
-        # C. Compare
-        if booked_count < total_capacity:
-            available_slots.append(slot)
+        # Remaining Capacity = Total Therapists - Booked Slots
+        remaining_capacity = total_capacity - booked_count
+
+        if remaining_capacity > 0:
+            available_slots.append({
+                "time": slot,
+                "capacity": remaining_capacity
+            })
 
     return available_slots
 
@@ -190,79 +192,18 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
     
     booking.insert(ignore_permissions=True)
     
-    # --- POS Integration: Auto-create Draft Order ---
-    invoice_name = None
+    # NOTE: POS Invoice is NOT created here (online bookings)
+    # Workflow: 
+    # 1. Online booking creates Service Booking (status: Pending)
+    # 2. Receptionist reviews and changes status to 'Approved'
+    # 3. Draft POS Invoice auto-created on approval (via on_update hook)
+    # 4. Customer arrives, receptionist loads draft and checks out
     
-    # Switch to Administrator to bypass permission checks for POS creation (Guest user issue)
-    current_user = frappe.session.user
-    frappe.set_user("Administrator")
-    
-    try:
-        # Re-fetch POS Profile name to be sure
-        pos_profile_name = frappe.db.get_value("POS Profile", {"warehouse": ["like", f"%{branch}%"]}, "name")
-        
-        if pos_profile_name:
-            # Fetch Linked Data
-            profile_doc = frappe.get_doc("POS Profile", pos_profile_name)
-            cost_center = frappe.db.get_value("Branch", branch, "default_cost_center")
-            
-            # Create Invoice
-            pos_inv = frappe.new_doc("POS Invoice")
-            pos_inv.customer = customer
-            pos_inv.pos_profile = pos_profile_name
-            pos_inv.company = "Masaje de Bohol" 
-            pos_inv.posting_date = date 
-            pos_inv.branch = branch 
-            pos_inv.update_stock = profile_doc.update_stock 
-            
-            # Commission Logic (Simple 10% for now)
-            total_comm = 0.0
-            item_wh = frappe.db.get_value("POS Profile", pos_profile_name, "warehouse")
-            
-            for item in booking_items:
-                item_comm = item["price"] * 0.10
-                total_comm += item_comm
-                
-                pos_inv.append("items", {
-                    "item_code": item["service_item"],
-                    "qty": 1,
-                    "rate": item["price"],
-                    "uom": "Unit", 
-                    "conversion_factor": 1,
-                    "warehouse": item_wh,
-                    "cost_center": cost_center 
-                })
-            
-            # Sales Team Logic (Standard Commission)
-            if booking.therapist:
-                sales_person = frappe.db.get_value("Sales Person", {"employee": booking.therapist, "enabled": 1})
-                if sales_person:
-                    pos_inv.append("sales_team", {
-                        "sales_person": sales_person,
-                        "allocated_percentage": 100,
-                    })
-            
-            pos_inv.set_missing_values() 
-            pos_inv.docstatus = 0 
-            pos_inv.insert(ignore_permissions=True)
-            invoice_name = pos_inv.name
-            
-            # Update Booking with commission and invoice link
-            frappe.db.set_value("Service Booking", booking.name, {
-                "commission_amount": total_comm,
-                "invoice": invoice_name
-            })
-        else:
-            frappe.log_error(f"POS Profile not found for branch: {branch}", "Masaje Booking")
-            
-    except Exception as e:
-        frappe.log_error(f"POS Creation Failed: {str(e)}", "Masaje Booking")
-        print(f"POS Creation Error: {e}")
-
-    finally:
-        frappe.set_user(current_user)
-
-    return {"name": booking.name, "invoice": invoice_name, "message": "Booking Created Successfully"}
+    return {
+        "name": booking.name, 
+        "invoice": None,  # No invoice for online bookings
+        "message": "Booking Created Successfully! Please wait for confirmation."
+    }
 
 
 @frappe.whitelist()

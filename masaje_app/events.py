@@ -90,48 +90,53 @@ def check_therapist_conflict(doc):
 
 
 def on_service_booking_insert(doc, method):
-
     """
-    Create draft POS Invoice when Service Booking is created via Desk.
-    This handles walk-in customers where receptionist creates booking manually.
+    Called when Service Booking is created.
     
-    Note: Online bookings via api.py create their own invoice, so this checks
-    if invoice is already linked to avoid duplicates.
+    NEW WORKFLOW:
+    - POS Invoice is NOT created on insert
+    - Draft POS Invoice created only when status changes to 'Approved'
+    - This allows online bookings (made after hours) to be reviewed first
     """
-    # Skip if invoice already exists (e.g., created by api.py)
-    if doc.invoice:
-        return
-    
-    # Skip if no customer - booking incomplete
-    if not doc.customer:
-        return
-        
-    # Skip if status is Cancelled
-    if doc.status == "Cancelled":
-        return
-    
-    # Create the draft POS Invoice
-    invoice_name = create_pos_invoice_for_booking(doc)
-    
-    if invoice_name:
-        frappe.msgprint(
-            f"Draft POS Invoice <a href='/app/pos-invoice/{invoice_name}'>{invoice_name}</a> created.",
-            alert=True
-        )
+    # No auto-creation here - moved to on_update with 'Approved' status trigger
+    pass
 
 
 def on_service_booking_update(doc, method):
     """
-    Handle Service Booking updates - sync with linked POS Invoice if needed.
+    Handle Service Booking updates.
+    
+    KEY TRIGGERS:
+    1. Status = 'Approved' and no invoice → Create draft POS Invoice
+    2. Status = 'Cancelled' and has draft invoice → Delete the draft
     """
-    # If booking is cancelled and has an invoice, we might want to cancel the draft
+    # Get previous status to detect change
+    previous_status = doc.get_doc_before_save().status if doc.get_doc_before_save() else None
+    
+    # TRIGGER 1: Status changed to 'Approved' - Create draft POS Invoice
+    if doc.status == "Approved" and previous_status != "Approved":
+        if not doc.invoice and doc.customer:
+            invoice_name = create_pos_invoice_for_booking(doc)
+            if invoice_name:
+                frappe.msgprint(
+                    f"Draft POS Invoice <a href='/app/pos-invoice/{invoice_name}'>{invoice_name}</a> created.",
+                    alert=True
+                )
+            else:
+                frappe.msgprint(
+                    "Note: Could not create POS Invoice. Please check if POS session is open.",
+                    indicator="orange",
+                    alert=True
+                )
+    
+    # TRIGGER 2: Status changed to 'Cancelled' - Delete draft invoice if exists
     if doc.status == "Cancelled" and doc.invoice:
-        # Check if invoice is still in draft
         invoice_status = frappe.db.get_value("POS Invoice", doc.invoice, "docstatus")
         if invoice_status == 0:  # Draft
+            frappe.delete_doc("POS Invoice", doc.invoice, ignore_permissions=True)
+            frappe.db.set_value("Service Booking", doc.name, "invoice", None)
             frappe.msgprint(
-                f"Note: Draft POS Invoice {doc.invoice} exists for this cancelled booking. "
-                "Please delete it manually if not needed.",
+                f"Draft POS Invoice {doc.invoice} deleted.",
                 alert=True
             )
 
@@ -239,84 +244,30 @@ def on_pos_invoice_trash(doc, method):
 
 def sync_pos_items_to_booking(pos_invoice, booking_name):
     """
-    Sync items from POS Invoice to existing Service Booking.
-    Compares items and reports added/removed changes.
-    Also marks the booking as Completed since payment is done.
-    """
-    from frappe.utils import add_to_date
+    Sync essential data from POS Invoice to Service Booking.
     
+    IMPORTANT: Booking items are NOT overwritten to preserve the original request.
+    - Service Booking = What customer originally requested (for comparison)
+    - POS Invoice = What was actually paid (source of truth for reports)
+    
+    This sync only:
+    1. Marks booking as Completed
+    2. Syncs therapist if changed in POS
+    """
     booking_doc = frappe.get_doc("Service Booking", booking_name)
     
-    # Get existing service items in booking (by item code)
-    existing_items = {item.service_item for item in booking_doc.items}
-    
-    # Get service items from POS Invoice (non-stock only)
-    pos_service_items = set()
-    pos_items_data = {}
-    
-    for item in pos_invoice.items:
-        item_data = frappe.db.get_value("Item", item.item_code, ["is_stock_item", "custom_duration_minutes"], as_dict=True)
-        if not item_data.is_stock_item:
-            # Use custom duration from Item, fallback to 60 minutes
-            duration = item_data.custom_duration_minutes or 60
-            pos_service_items.add(item.item_code)
-            pos_items_data[item.item_code] = {
-                "service_item": item.item_code,
-                "service_name": item.item_name,
-                "duration_minutes": duration,
-                "price": item.rate
-            }
-    
-    # Calculate differences
-    added_items = pos_service_items - existing_items
-    removed_items = existing_items - pos_service_items
-    
-    # Apply changes if any difference
-    if added_items or removed_items:
-        # Clear existing items and rebuild from POS (full sync)
-        booking_doc.items = []
-        total_duration = 0
-        
-        for item_code in pos_service_items:
-            item_data = pos_items_data[item_code]
-            booking_doc.append("items", item_data)
-            total_duration += item_data["duration_minutes"]
-        
-        # Update duration
-        booking_doc.duration_minutes = total_duration
-        
-        # Update end_datetime based on start and new duration
-        if booking_doc.start_datetime:
-            booking_doc.end_datetime = add_to_date(booking_doc.start_datetime, minutes=total_duration)
-    
-    # Sync therapist from POS Invoice (in case it was changed)
+    # Sync therapist from POS Invoice (in case it was changed/assigned at checkout)
     if pos_invoice.get("therapist"):
         booking_doc.therapist = pos_invoice.therapist
     
     # Mark booking as Completed (payment done via POS)
     booking_doc.status = "Completed"
     booking_doc.save(ignore_permissions=True)
-
     
-    # Build notification message
-    changes = []
-    if added_items:
-        changes.append(f"{len(added_items)} added")
-    if removed_items:
-        changes.append(f"{len(removed_items)} removed")
-    
-    if changes:
-        change_msg = ", ".join(changes)
-        frappe.msgprint(
-            f"Items synced ({change_msg}). "
-            f"<a href='/app/service-booking/{booking_name}'>{booking_name}</a> marked Completed.",
-            alert=True
-        )
-    else:
-        frappe.msgprint(
-            f"<a href='/app/service-booking/{booking_name}'>{booking_name}</a> marked Completed.",
-            alert=True
-        )
+    frappe.msgprint(
+        f"<a href='/app/service-booking/{booking_name}'>{booking_name}</a> marked Completed.",
+        alert=True
+    )
 
 
 def create_service_booking_from_invoice(pos_invoice):

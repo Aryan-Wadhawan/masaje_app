@@ -6,14 +6,20 @@ from frappe.utils import get_datetime, add_to_date
 def get_pos_profile_for_branch(branch):
     """
     Get POS Profile for a given branch.
-    Looks up POS Profile where warehouse name contains the branch name.
+    POS Profiles are named like '[Branch] POS' e.g., 'Dao Branch POS'.
     """
     if not branch:
         return None
     
+    # First try exact match with pattern "[Branch Name] POS"
+    pos_profile_name = f"{branch} POS"
+    if frappe.db.exists("POS Profile", pos_profile_name):
+        return pos_profile_name
+    
+    # Fallback: search for profile name containing the branch
     return frappe.db.get_value(
         "POS Profile", 
-        {"warehouse": ["like", f"%{branch}%"]}, 
+        {"name": ["like", f"%{branch}%"]}, 
         "name"
     )
 
