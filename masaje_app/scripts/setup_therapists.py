@@ -76,15 +76,24 @@ DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sun
 def setup_designation():
     """Create Therapist designation if not exists."""
     print("\n1. Setting up Designation...")
-    if not frappe.db.exists("Designation", "Therapist"):
-        frappe.get_doc({
-            "doctype": "Designation",
-            "designation_name": "Therapist"
-        }).insert()
-        print("   ✓ Created: Therapist designation")
-    else:
-        print("   ✓ Exists: Therapist designation")
-    frappe.db.commit()
+    try:
+        # Check if Designation doctype is available
+        if not frappe.db.exists("DocType", "Designation"):
+            print("   ⚠ Skipping: Designation doctype not found (ERPNext may need migration)")
+            return
+        
+        if not frappe.db.exists("Designation", "Therapist"):
+            frappe.get_doc({
+                "doctype": "Designation",
+                "designation_name": "Therapist"
+            }).insert()
+            print("   ✓ Created: Therapist designation")
+        else:
+            print("   ✓ Exists: Therapist designation")
+        frappe.db.commit()
+    except Exception as e:
+        print(f"   ⚠ Skipping Designation setup: {e}")
+        print("   (This is OK if ERPNext hasn't been fully migrated yet)")
 
 
 def setup_employees():

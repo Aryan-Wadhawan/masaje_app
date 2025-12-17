@@ -23,6 +23,12 @@ def setup_pos_profiles():
     """Create POS Profile for each branch (Cash only)."""
     print("\n1. Setting up POS Profiles...")
     
+    # Check if POS Profile doctype is available
+    if not frappe.db.exists("DocType", "POS Profile"):
+        print("   ⚠ Skipping: POS Profile doctype not found (ERPNext may need migration)")
+        print("   Run: bench --site masajedebohol.com migrate")
+        return
+    
     # Get company
     company = frappe.defaults.get_global_default("company") or "Masaje de Bohol"
     
@@ -134,15 +140,24 @@ def setup_receptionist_role():
 def setup_designation():
     """Create Receptionist designation."""
     print("\n3. Setting up Designation...")
-    if not frappe.db.exists("Designation", "Receptionist"):
-        frappe.get_doc({
-            "doctype": "Designation",
-            "designation_name": "Receptionist"
-        }).insert()
-        print("   ✓ Created: Receptionist designation")
-    else:
-        print("   ✓ Exists: Receptionist designation")
-    frappe.db.commit()
+    try:
+        # Check if Designation doctype is available
+        if not frappe.db.exists("DocType", "Designation"):
+            print("   ⚠ Skipping: Designation doctype not found (ERPNext may need migration)")
+            return
+        
+        if not frappe.db.exists("Designation", "Receptionist"):
+            frappe.get_doc({
+                "doctype": "Designation",
+                "designation_name": "Receptionist"
+            }).insert()
+            print("   ✓ Created: Receptionist designation")
+        else:
+            print("   ✓ Exists: Receptionist designation")
+        frappe.db.commit()
+    except Exception as e:
+        print(f"   ⚠ Skipping Designation setup: {e}")
+        print("   (This is OK if ERPNext hasn't been fully migrated yet)")
 
 
 def setup_receptionists():
