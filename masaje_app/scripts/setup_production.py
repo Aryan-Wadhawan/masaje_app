@@ -169,6 +169,7 @@ def setup_services():
             "description": english,
             "item_group": group,
             "is_stock_item": 0,
+            "stock_uom": "Nos",  # Unit of Measure for services
             "custom_duration_minutes": duration
         })
         item.insert()
