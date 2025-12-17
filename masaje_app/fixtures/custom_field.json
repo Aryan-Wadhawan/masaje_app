@@ -1,6 +1,7 @@
 [
     {
         "doctype": "Custom Field",
+        "name": "Employee-commission_rate",
         "dt": "Employee",
         "fieldname": "commission_rate",
         "fieldtype": "Percent",
@@ -10,6 +11,7 @@
     },
     {
         "doctype": "Custom Field",
+        "name": "POS Invoice-therapist",
         "dt": "POS Invoice",
         "fieldname": "therapist",
         "fieldtype": "Link",
@@ -17,5 +19,19 @@
         "options": "Employee",
         "insert_after": "customer_name",
         "description": "Therapist who performed the service"
+    },
+    {
+        "doctype": "Custom Field",
+        "name": "POS Invoice-booking_time",
+        "dt": "POS Invoice",
+        "fieldname": "booking_time",
+        "fieldtype": "Data",
+        "label": "Booking Time",
+        "insert_after": "therapist",
+        "description": "Original booking time (HH:MM) from Service Booking",
+        "read_only": 1,
+        "hidden": 0,
+        "in_list_view": 1,
+        "in_standard_filter": 1
     }
 ]

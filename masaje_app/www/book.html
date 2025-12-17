@@ -1,0 +1,870 @@
+{% extends "templates/web.html" %}
+
+{% block title %}Book a Service | Masaje de Bohol{% endblock %}
+
+{% block page_content %}
+<style>
+    /* Booking Page Styles */
+    .booking-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .booking-header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+
+    .booking-header h1 {
+        font-size: 2rem;
+        color: #333;
+        margin-bottom: 10px;
+    }
+
+    .booking-header p {
+        color: #666;
+    }
+
+    /* Progress Steps */
+    .progress-steps {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 30px;
+        gap: 10px;
+    }
+
+    .step-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 15px;
+        background: #f5f5f5;
+        border-radius: 25px;
+        color: #888;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+
+    .step-indicator.active {
+        background: var(--primary);
+        color: white;
+    }
+
+    .step-indicator.done {
+        background: #28a745;
+        color: white;
+    }
+
+    .step-number {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+
+    /* Step Content */
+    .step {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .step.active {
+        display: block;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Service Filters */
+    .service-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .service-filter-chip {
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid #ddd;
+        background: #fafafa;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        white-space: nowrap;
+    }
+
+    .service-filter-chip:hover {
+        border-color: var(--primary);
+    }
+
+    .service-filter-chip.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
+    }
+
+    /* Service Cards */
+    .services-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .service-card {
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 15px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+    }
+
+    .service-card:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .service-card.selected {
+        border-color: var(--primary);
+        background: rgba(var(--primary-rgb), 0.05);
+    }
+
+    .service-card img {
+        width: 100%;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+
+    .service-name {
+        font-weight: 600;
+        font-size: 16px;
+        margin-bottom: 5px;
+    }
+
+    .service-price {
+        color: var(--primary);
+        font-weight: bold;
+        font-size: 18px;
+    }
+
+    .service-description {
+        color: #666;
+        font-size: 12px;
+        margin-top: 5px;
+    }
+
+    /* Running Total */
+    .cart-summary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        margin-top: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .cart-items {
+        font-size: 14px;
+    }
+
+    .cart-total {
+        font-size: 24px;
+        font-weight: bold;
+    }
+
+    /* Branch Cards */
+    .branches-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+    }
+
+    .branch-card {
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .branch-card:hover {
+        border-color: var(--primary);
+    }
+
+    .branch-card.selected {
+        border-color: var(--primary);
+        background: rgba(var(--primary-rgb), 0.05);
+    }
+
+    .branch-icon {
+        font-size: 36px;
+        margin-bottom: 10px;
+    }
+
+    /* Time Slots */
+    .date-picker {
+        margin-bottom: 20px;
+    }
+
+    .date-picker input {
+        font-size: 16px;
+        padding: 12px 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        width: 100%;
+        max-width: 300px;
+    }
+
+    .time-slots-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 10px;
+    }
+
+    .time-slot {
+        padding: 15px 10px;
+        text-align: center;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .time-slot:hover:not(.unavailable) {
+        border-color: var(--primary);
+    }
+
+    .time-slot.selected {
+        border-color: var(--primary);
+        background: var(--primary);
+        color: white;
+    }
+
+    .time-slot.unavailable {
+        background: #f5f5f5;
+        color: #ccc;
+        cursor: not-allowed;
+    }
+
+    .time-slot .capacity {
+        font-size: 10px;
+        color: #888;
+        margin-top: 3px;
+    }
+
+    .time-slot.selected .capacity {
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* Customer Form */
+    .customer-form {
+        max-width: 400px;
+        margin: 0 auto;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 12px 15px;
+        font-size: 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+
+    /* Buttons */
+    .btn-row {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        margin-top: 30px;
+    }
+
+    .btn-booking {
+        padding: 15px 40px;
+        font-size: 16px;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-next {
+        background: var(--primary);
+        color: white;
+    }
+
+    .btn-next:hover {
+        opacity: 0.9;
+        transform: translateY(-2px);
+    }
+
+    .btn-back {
+        background: #f5f5f5;
+        color: #333;
+    }
+
+    .btn-back:hover {
+        background: #e0e0e0;
+    }
+
+    .btn-submit {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+        width: 100%;
+    }
+
+    /* Success Message */
+    .success-message {
+        text-align: center;
+        padding: 40px;
+    }
+
+    .success-icon {
+        font-size: 64px;
+        color: #28a745;
+        margin-bottom: 20px;
+    }
+
+    .booking-ref {
+        background: #f5f5f5;
+        padding: 10px 20px;
+        border-radius: 8px;
+        display: inline-block;
+        font-family: monospace;
+        font-size: 18px;
+        margin-top: 15px;
+    }
+
+    /* Loading */
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: #888;
+    }
+
+    /* Mobile */
+    @media (max-width: 600px) {
+        .progress-steps {
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .step-indicator span:not(.step-number) {
+            display: none;
+        }
+
+        .services-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="booking-container">
+    <div class="booking-header">
+        <h1>Book Your Massage</h1>
+        <p>Select your services and preferred time</p>
+    </div>
+
+    <!-- Progress Steps -->
+    <div class="progress-steps">
+        <div class="step-indicator active" data-step="1">
+            <span class="step-number">1</span>
+            <span>Branch</span>
+        </div>
+        <div class="step-indicator" data-step="2">
+            <span class="step-number">2</span>
+            <span>Services</span>
+        </div>
+        <div class="step-indicator" data-step="3">
+            <span class="step-number">3</span>
+            <span>Date & Time</span>
+        </div>
+        <div class="step-indicator" data-step="4">
+            <span class="step-number">4</span>
+            <span>Details</span>
+        </div>
+    </div>
+
+    <!-- Step 1: Select Branch -->
+    <div class="step active" id="step-1">
+        <h3>Select Your Branch</h3>
+        <div class="branches-grid" id="branches-grid">
+            {% for branch in branches %}
+            <div class="branch-card" data-branch="{{ branch.name }}" onclick="selectBranch(this)">
+                <div class="branch-icon">📍</div>
+                <div class="branch-name">{{ branch.name }}</div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-booking btn-next" onclick="nextStep()" id="btn-step1-next" disabled>
+                Continue →
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: Select Services -->
+    <div class="step" id="step-2">
+        <h3>Select Your Services</h3>
+
+        <div class="service-filters" id="service-filters" style="display: none;"></div>
+        <div class="services-grid" id="services-grid">
+            <div class="loading">Please select a branch first</div>
+        </div>
+
+        <div class="cart-summary" id="cart-summary" style="display: none;">
+            <div class="cart-items">
+                <span id="cart-count">0</span> service(s) selected
+            </div>
+            <div class="cart-total">
+                ₱<span id="cart-total">0</span>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-booking btn-back" onclick="prevStep()">← Back</button>
+            <button class="btn-booking btn-next" onclick="nextStep()" id="btn-step2-next" disabled>
+                Continue →
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 3: Select Date & Time -->
+    <div class="step" id="step-3">
+        <h3>Select Date & Time</h3>
+
+        <div class="date-picker">
+            <label>Select Date:</label>
+            <input type="date" id="booking-date" onchange="loadTimeSlots()">
+        </div>
+
+        <div class="time-slots-grid" id="time-slots-grid">
+            <p class="loading">Please select a date first</p>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-booking btn-back" onclick="prevStep()">← Back</button>
+            <button class="btn-booking btn-next" onclick="nextStep()" id="btn-step3-next" disabled>
+                Continue →
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: Customer Details -->
+    <div class="step" id="step-4">
+        <h3>Your Details</h3>
+
+        <div class="customer-form">
+            <div class="form-group">
+                <label>Full Name *</label>
+                <input type="text" id="customer-name" placeholder="Enter your name" required>
+            </div>
+
+            <div class="form-group">
+                <label>Phone Number *</label>
+                <input type="tel" id="customer-phone" placeholder="Enter your phone number" required>
+            </div>
+
+            <div class="form-group">
+                <label>Email (optional)</label>
+                <input type="email" id="customer-email" placeholder="Enter your email">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-booking btn-back" onclick="prevStep()">← Back</button>
+            </div>
+
+            <button class="btn-booking btn-submit" onclick="submitBooking()" style="margin-top: 15px;">
+                ✓ Confirm Booking
+            </button>
+        </div>
+    </div>
+
+    <!-- Success Step -->
+    <div class="step" id="step-success">
+        <div class="success-message">
+            <div class="success-icon">✅</div>
+            <h2>Booking Confirmed!</h2>
+            <p>Thank you for your booking. We look forward to seeing you!</p>
+            <div class="booking-ref" id="booking-ref">SB-00000</div>
+            <p style="margin-top: 20px; color: #666;">
+                Please wait for confirmation. We will contact you shortly.
+            </p>
+            <div class="btn-row" style="margin-top: 30px;">
+                <button class="btn-booking btn-next" onclick="window.location.reload()">
+                    Book Another
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // State
+    let currentStep = 1;
+    let selectedServices = [];
+    let selectedBranch = null;
+    let selectedDate = null;
+    let selectedTime = null;
+    let servicesData = {};
+    let allServices = [];
+    let activeServiceGroup = 'all';
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function () {
+        setMinDate();
+        // No longer loading services automatically at start
+    });
+
+    function setMinDate() {
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('booking-date').min = today;
+        document.getElementById('booking-date').value = today;
+    }
+
+    // Load services based on branch
+    function loadServices() {
+        if (!selectedBranch) return;
+
+        const grid = document.getElementById('services-grid');
+        grid.innerHTML = '<div class="loading">Loading services for ' + selectedBranch + '...</div>';
+
+        // Clear previous selection
+        selectedServices = [];
+        updateCart();
+
+        frappe.call({
+            method: 'masaje_app.api.get_services', // Using custom API that handles prices
+            args: {
+                branch: selectedBranch
+            },
+            callback: function (r) {
+                if (r.message) {
+                    activeServiceGroup = 'all';
+                    renderServices(r.message);
+                } else {
+                    grid.innerHTML = '<p>No services found for this branch.</p>';
+                }
+            }
+        });
+    }
+
+    function renderServices(services) {
+        const grid = document.getElementById('services-grid');
+        servicesData = {}; // clear old data
+        allServices = services.slice(); // keep a master copy for filtering
+
+        if (!services.length) {
+            grid.innerHTML = '<p>No services available</p>';
+            return;
+        }
+
+        const fallbackImg = '/assets/frappe/images/fallback-thumbnail.jpg';
+
+        // Build distinct groups from services (e.g. Massage 1 Hour, Packages, Sauna)
+        const groupsSet = new Set();
+        services.forEach(s => {
+            if (s.item_group) {
+                groupsSet.add(s.item_group);
+            }
+        });
+
+        const filtersContainer = document.getElementById('service-filters');
+        const groups = Array.from(groupsSet).sort();
+
+        if (groups.length > 1) {
+            let filtersHtml = `
+                <div class="service-filter-chip ${activeServiceGroup === 'all' ? 'active' : ''}" data-group="all" onclick="filterServicesByGroup('all')">
+                    All
+                </div>
+            `;
+
+            groups.forEach(group => {
+                const isActive = activeServiceGroup === group;
+                filtersHtml += `
+                    <div class="service-filter-chip ${isActive ? 'active' : ''}" data-group="${group}" onclick="filterServicesByGroup('${group.replace(/'/g, "\\'")}')">
+                        ${group}
+                    </div>
+                `;
+            });
+
+            filtersContainer.innerHTML = filtersHtml;
+            filtersContainer.style.display = 'flex';
+        } else {
+            filtersContainer.style.display = 'none';
+            filtersContainer.innerHTML = '';
+        }
+        let html = '';
+        const visibleServices = activeServiceGroup === 'all'
+            ? allServices
+            : allServices.filter(s => s.item_group === activeServiceGroup);
+
+        visibleServices.forEach(s => {
+            servicesData[s.name] = s;
+            // API returns 'price' directly (from item price list)
+            const price = s.price || 0;
+            // Use a safe built-in placeholder when no image is configured, without spamming console errors
+            const img = s.image && s.image.trim() ? s.image : fallbackImg;
+            const description = s.description || '';
+
+            html += `
+            <div class="service-card" data-item="${s.name}" data-price="${price}" onclick="toggleService(this)">
+                <div class="service-card-image-wrapper">
+                    <img src="${img}" alt="${s.item_name || s.name}" class="service-card-image">
+                </div>
+                <div class="service-name">${s.item_name}</div>
+                <div class="service-price">₱${price.toLocaleString()}</div>
+                ${description ? `<div class="service-description">${description.substring(0, 50)}</div>` : ''}
+            </div>
+        `;
+        });
+
+        grid.innerHTML = html;
+    }
+
+    function filterServicesByGroup(group) {
+        activeServiceGroup = group;
+
+        // Update chip active state
+        document.querySelectorAll('#service-filters .service-filter-chip').forEach(chip => {
+            const chipGroup = chip.getAttribute('data-group');
+            if (chipGroup === group) {
+                chip.classList.add('active');
+            } else if (group === 'all' && chipGroup === 'all') {
+                chip.classList.add('active');
+            } else {
+                chip.classList.remove('active');
+            }
+        });
+
+        // Re-render using the cached allServices collection
+        renderServices(allServices);
+    }
+
+    function selectBranch(el) {
+        document.querySelectorAll('.branch-card').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedBranch = el.dataset.branch;
+        document.getElementById('btn-step1-next').disabled = false;
+    }
+
+    // ... toggleService, updateCart same as before ...
+
+    function toggleService(el) {
+        const item = el.dataset.item;
+        const price = parseFloat(el.dataset.price) || 0;
+
+        if (el.classList.contains('selected')) {
+            el.classList.remove('selected');
+            selectedServices = selectedServices.filter(s => s.item !== item);
+        } else {
+            el.classList.add('selected');
+            selectedServices.push({ item, price });
+        }
+
+        updateCart();
+    }
+
+    function updateCart() {
+        const summary = document.getElementById('cart-summary');
+        const countEl = document.getElementById('cart-count');
+        const totalEl = document.getElementById('cart-total');
+        const nextBtn = document.getElementById('btn-step2-next');
+
+        const total = selectedServices.reduce((sum, s) => sum + s.price, 0);
+
+        if (selectedServices.length > 0) {
+            summary.style.display = 'flex';
+            countEl.textContent = selectedServices.length;
+            totalEl.textContent = total.toLocaleString();
+            nextBtn.disabled = false;
+        } else {
+            summary.style.display = 'none';
+            nextBtn.disabled = true;
+        }
+    }
+
+    function selectTimeSlot(el) {
+        document.querySelectorAll('.time-slot').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+        selectedTime = el.dataset.time;
+        document.getElementById('btn-step3-next').disabled = false;
+    }
+
+    function loadTimeSlots() {
+        const date = document.getElementById('booking-date').value;
+        if (!date || !selectedBranch) return;
+
+        selectedDate = date;
+        const grid = document.getElementById('time-slots-grid');
+        grid.innerHTML = '<div class="loading">Loading available slots...</div>';
+
+        frappe.call({
+            method: 'masaje_app.api.get_available_slots',
+            args: {
+                branch: selectedBranch,
+                date: date
+            },
+            callback: function (r) {
+                if (r.message) {
+                    renderTimeSlots(r.message);
+                }
+            }
+        });
+    }
+
+    function renderTimeSlots(slots) {
+        const grid = document.getElementById('time-slots-grid');
+
+        if (!slots.length) {
+            grid.innerHTML = '<p>No slots available for this date</p>';
+            return;
+        }
+
+        let html = '';
+        slots.forEach(slot => {
+            const unavailable = slot.capacity <= 0;
+            const className = unavailable ? 'time-slot unavailable' : 'time-slot';
+
+            html += `
+            <div class="${className}" data-time="${slot.time}" onclick="${unavailable ? '' : 'selectTimeSlot(this)'}">
+                <div class="time">${slot.time}</div>
+                <div class="capacity">${slot.capacity} available</div>
+            </div>
+        `;
+        });
+
+        grid.innerHTML = html;
+    }
+
+    function nextStep() {
+        if (currentStep < 4) {
+            // Validation for Step 1 (Branch)
+            if (currentStep === 1 && !selectedBranch) return;
+
+            document.getElementById(`step-${currentStep}`).classList.remove('active');
+            currentStep++;
+            document.getElementById(`step-${currentStep}`).classList.add('active');
+
+            // Update progress indicators
+            updateProgress();
+
+            // Actions on entering step
+            if (currentStep === 2) {
+                // Load services for selected branch
+                loadServices();
+            } else if (currentStep === 3) {
+                // Load time slots
+                loadTimeSlots();
+            }
+        }
+    }
+
+    function prevStep() {
+        if (currentStep > 1) {
+            document.getElementById(`step-${currentStep}`).classList.remove('active');
+            currentStep--;
+            document.getElementById(`step-${currentStep}`).classList.add('active');
+            updateProgress();
+        }
+    }
+
+    function updateProgress() {
+        document.querySelectorAll('.step-indicator').forEach((el, idx) => {
+            el.classList.remove('active', 'done');
+            if (idx + 1 < currentStep) {
+                el.classList.add('done');
+            } else if (idx + 1 === currentStep) {
+                el.classList.add('active');
+            }
+        });
+    }
+
+    function submitBooking() {
+        const name = document.getElementById('customer-name').value.trim();
+        const phone = document.getElementById('customer-phone').value.trim();
+        const email = document.getElementById('customer-email').value.trim();
+
+        if (!name) {
+            frappe.msgprint('Please enter your name');
+            return;
+        }
+        if (!phone) {
+            frappe.msgprint('Please enter your phone number');
+            return;
+        }
+
+        // Show loading
+        frappe.show_alert('Creating your booking...', 3);
+
+        frappe.call({
+            method: 'masaje_app.api.create_booking',
+            args: {
+                customer_name: name,
+                phone: phone,
+                email: email,
+                branch: selectedBranch,
+                items: JSON.stringify(selectedServices.map(s => s.item)), // Send list of item codes
+                date: selectedDate,
+                time: selectedTime
+            },
+            callback: function (r) {
+                if (r.message && r.message.name) {
+                    // Success!
+                    document.getElementById('booking-ref').textContent = r.message.name;
+                    document.getElementById(`step-${currentStep}`).classList.remove('active');
+                    document.getElementById('step-success').classList.add('active');
+
+                    // Hide progress
+                    document.querySelector('.progress-steps').style.display = 'none';
+                } else {
+                    frappe.msgprint('Booking failed. Please try again.');
+                }
+            },
+            error: function (err) {
+                frappe.msgprint('An error occurred. Please try again.');
+            }
+        });
+    }
+</script>
+
+{% endblock %}

@@ -1,25 +1,122 @@
 
 import frappe
-from frappe.utils import get_datetime, add_to_date
-from datetime import datetime, timedelta
-from frappe.utils import today, add_days, get_datetime
+from frappe.utils import get_datetime, add_to_date, today, add_days, get_datetime
+from typing import List, Dict, Any, Optional
 
 @frappe.whitelist(allow_guest=True)
 def get_branches():
     return frappe.get_all("Branch", fields=["name"], ignore_permissions=True)
 
+
+def _resolve_price_list_for_branch(branch: Optional[str]) -> str:
+    """
+    Determine which price list to use for a given branch.
+
+    Business rules:
+    - Panglao branch uses "Panglao Prices".
+    - All other branches use "Standard Selling".
+    - If a POS Profile with a specific selling_price_list exists for a branch,
+      it can still override this default mapping.
+    """
+    if not branch:
+        return "Standard Selling"
+
+    # Normalize for loose matching
+    normalized = branch.lower()
+    default_list = "Standard Selling"
+
+    # 1) Hard rule: Panglao uses Panglao Prices
+    if "panglao" in normalized:
+        default_list = "Panglao Prices"
+
+    # 2) POS Profile can still override (if configured)
+    pos_price_list = frappe.db.get_value(
+        "POS Profile",
+        {"warehouse": ["like", f"%{branch}%"]},
+        "selling_price_list",
+    )
+    return pos_price_list or default_list
+
+
+def _is_item_available_for_branch(item: Dict[str, Any], branch: Optional[str]) -> bool:
+    """
+    Filter items based on availability tags in description.
+
+    Convention used in Item.description:
+    - e.g. "Sauna (Available at: Dao Branch, Panglao Branch only)"
+    - If the text "Available at:" is present, the item is ONLY available at
+      the listed branches.
+    - If no such tag is present, the item is treated as available at all branches.
+    """
+    if not branch:
+        # When branch is not specified, show global list
+        return True
+
+    description = (item.get("description") or "").strip()
+    marker = "Available at:"
+
+    if marker not in description:
+        # No availability restriction => available everywhere
+        return True
+
+    # Extract the part after "Available at:"
+    try:
+        after_marker = description.split(marker, 1)[1]
+    except IndexError:
+        return True
+
+    # Remove closing parenthesis or trailing "only" if present
+    cleaned = after_marker.replace("only", "").replace(")", "").strip()
+
+    # Split by comma to get individual branch names
+    allowed_branches: List[str] = [b.strip() for b in cleaned.split(",") if b.strip()]
+    if not allowed_branches:
+        # If we cannot parse anything meaningful, don't hide the item
+        return True
+
+    branch_normalized = branch.lower()
+    return any(b.lower() in branch_normalized or branch_normalized in b.lower() for b in allowed_branches)
+
 @frappe.whitelist(allow_guest=True)
-def get_services(branch):
+def get_services(branch=None):
     """Fetch services and their prices for a specific branch."""
-    # We join Item and Item Price
-    items = frappe.db.sql("""
-        SELECT i.name, i.item_name, i.description, ip.price_list_rate as price, i.image
+    
+    # 1. Determine Price List for Branch using explicit business rules
+    price_list = _resolve_price_list_for_branch(branch)
+
+    # 2. Fetch Services (Non-stock Sales Items) with Price for this list
+    # We always use Item Price for the resolved list, but allow a standard_rate
+    # fallback for safety (e.g. if an item is missing from the list).
+    items: List[Dict[str, Any]] = frappe.db.sql(
+        """
+        SELECT 
+            i.name,
+            i.item_name,
+            i.description,
+            i.item_group,
+            COALESCE(ip.price_list_rate, i.standard_rate, 0) as price,
+            i.image
         FROM `tabItem` i
-        JOIN `tabItem Price` ip ON ip.item_code = i.name
-        WHERE i.item_group IN ('Services', 'Packages') 
-        AND ip.price_list = %s
-    """, (branch,), as_dict=True)
-    return items
+        LEFT JOIN `tabItem Price` ip
+            ON ip.item_code = i.name
+            AND ip.price_list = %s
+        WHERE i.is_sales_item = 1 
+          AND i.is_stock_item = 0
+          AND i.disabled = 0
+        ORDER BY i.item_name ASC
+    """,
+        (price_list,),
+        as_dict=True,
+    )
+
+    # 3. Apply per-branch availability filtering based on description tags.
+    #    This ensures items like Sauna are only shown for branches that are
+    #    explicitly listed in "(Available at: ...)".
+    filtered: List[Dict[str, Any]] = [
+        item for item in items if _is_item_available_for_branch(item, branch)
+    ]
+
+    return filtered
 
 @frappe.whitelist(allow_guest=True)
 def get_therapists():
@@ -124,11 +221,22 @@ def create_booking(customer_name, phone, email, branch, items, date, time):
     if not items:
          frappe.throw("No service selected!", frappe.ValidationError)
 
+    # Check if customer exists by phone number
     customer = frappe.get_value("Customer", {"mobile_no": phone}, "name")
+    
     if not customer:
+        # Check if customer name already exists to avoid "Renamed to..." message
+        existing_name = frappe.db.get_value("Customer", customer_name, "name")
+        final_customer_name = customer_name
+        
+        if existing_name:
+            # Name taken (by someone with diff phone), so make it unique
+            # Use Name + Last 4 digits of phone
+            final_customer_name = f"{customer_name} ({phone[-4:]})"
+            
         customer_doc = frappe.get_doc({
             "doctype": "Customer",
-            "customer_name": customer_name,
+            "customer_name": final_customer_name,
             "mobile_no": phone,
             "email_id": email,
             "customer_type": "Individual",

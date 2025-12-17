@@ -62,6 +62,11 @@ def create_pos_invoice_for_booking(booking_doc, save=True):
         pos_inv.branch = booking_doc.branch
         pos_inv.update_stock = profile_doc.update_stock
         
+        # Copy original booking time (for visibility in POS and reports)
+        if getattr(booking_doc, "time_slot", None):
+            # Store as simple HH:MM text; underlying field is Data
+            pos_inv.booking_time = str(booking_doc.time_slot)[:5]
+        
         # Copy therapist from booking
         if booking_doc.therapist:
             pos_inv.therapist = booking_doc.therapist

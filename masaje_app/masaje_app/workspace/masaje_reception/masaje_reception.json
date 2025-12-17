@@ -166,6 +166,16 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Repeat Visitors by Branch",
+   "link_count": 0,
+   "link_to": "Repeat Visitors by Branch",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
  "modified": "2025-12-16 20:40:12.381451",
